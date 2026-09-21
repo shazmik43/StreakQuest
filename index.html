@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0920"><meta name="description" content="StreakQuest — your personal streak game.">
+  <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css">
+  <title>StreakQuest</title>
+</head>
+<body>
+<div class="ambient"></div>
+<div id="particles" aria-hidden="true"></div>
+<main class="app">
+<header>
+  <a class="brand" href="#"><img src="icon.svg" alt=""><span><b>StreakQuest</b><small>Do it. Keep it alive.</small></span></a>
+  <div class="header-actions"><button id="notifyBtn" class="icon-btn" aria-label="Notifications">♢<span class="dot"></span></button><button id="settingsBtn" class="icon-btn" aria-label="Settings">⚙</button></div>
+</header>
+<section id="hero" class="hero">
+  <div class="hero-copy"><span class="eyebrow">TODAY'S FLAME</span><h1 id="heroTitle">Keep the fire alive.</h1><p id="heroSub">Complete a quest to ignite today's flame.</p>
+    <div class="progress-row"><strong id="progressText">0 / 0 quests</strong><span id="progressPct">0%</span></div><div class="progress"><i id="progressBar"></i></div>
+  </div>
+  <div class="flame-stage" aria-hidden="true"><div class="halo"></div><div id="bigFlame" class="big-flame">🔥</div><span class="spark s1">✦</span><span class="spark s2">•</span><span class="spark s3">✦</span></div>
+</section>
+<section class="quest-head"><div><span class="eyebrow">YOUR QUESTS</span><h2>Today's missions</h2></div><button id="addBtn" class="primary">＋ Add Quest</button></section>
+<section id="questList" class="quest-list"></section>
+<section id="empty" class="empty hidden"><div class="empty-fire">🔥</div><h2>Your flame is waiting.</h2><p>Start one small quest. Tomorrow, protect it.</p><button class="primary" id="emptyAdd">＋ Create Quest</button></section>
+<footer><span>STREAKQUEST</span><span>Consistency &gt; pressure</span></footer>
+</main>
+<dialog id="questDialog"><form id="questForm" method="dialog"><div class="modal-head"><div><span class="eyebrow">NEW MISSION</span><h2>Start a quest 🔥</h2></div><button type="button" class="close" data-close="questDialog">×</button></div>
+<label>Activity name<input id="questName" maxlength="48" required placeholder="e.g. Read 10 pages"></label>
+<label>Daily reminder <span class="optional">optional</span><input id="questReminder" type="time"></label>
+<p class="hint">A new quest begins at 0 days. Complete it today to start your streak.</p><button class="primary wide" type="submit">Start Quest 🔥</button></form></dialog>
+<dialog id="settingsDialog"><div class="modal-head"><div><span class="eyebrow">CONTROL ROOM</span><h2>Settings</h2></div><button class="close" data-close="settingsDialog">×</button></div>
+<div class="setting"><span><b>Notifications</b><small id="notifyStatus">Check browser support</small></span><button id="permissionBtn" class="pill">Enable</button></div>
+<div class="setting"><span><b>Sound effects</b><small>Tiny wins deserve a sound.</small></span><input id="soundToggle" type="checkbox"></div>
+<div class="setting"><span><b>Animations</b><small>Glow, sparks and motion.</small></span><input id="animationToggle" type="checkbox"></div>
+<div class="setting"><span><b>Reduced motion</b><small>Keep effects calmer.</small></span><input id="reducedToggle" type="checkbox"></div>
+<div class="danger-zone"><b>Danger zone</b><button id="resetAll" class="danger">Reset all data</button></div>
+<p class="push-note"><b>About reminders:</b> this static PWA can request and display browser notifications while the app is active. Reliable scheduled push when the app is closed requires Web Push + a server-side scheduler; the service worker is structured for that future upgrade.</p></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>
