@@ -1,9 +1,25 @@
-const KEY='streakquest.v1',MILESTONES=[3,7,14,30,50,100,365];
+const KEY='streakquest.v1',BACKUP_KEY='streakquest.v1.backup',MIRROR_KEY='streakquest.v1.mirror',MILESTONES=[3,7,14,30,50,100,365];
 const $=s=>document.querySelector(s),today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`};
 const defaults={activities:[],prefs:{sound:true,animations:true,reduced:false},celebrated:{}};
 let state=load();
-function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}'),prefs:{...defaults.prefs,...(JSON.parse(localStorage.getItem(KEY)||'{}').prefs)}}}catch{return structuredClone(defaults)}}
-function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function normalize(data){return {...defaults,...data,activities:Array.isArray(data?.activities)?data.activities:[],prefs:{...defaults.prefs,...(data?.prefs||{})},celebrated:data?.celebrated&&typeof data.celebrated==='object'?data.celebrated:{}}}
+function parseStored(raw){try{return raw?normalize(JSON.parse(raw)):null}catch{return null}}
+function load(){
+ const primary=parseStored(localStorage.getItem(KEY));
+ if(primary)return primary;
+ const mirror=parseStored(localStorage.getItem(MIRROR_KEY));
+ if(mirror){localStorage.setItem(KEY,JSON.stringify(mirror));return mirror}
+ const backup=parseStored(localStorage.getItem(BACKUP_KEY));
+ if(backup){localStorage.setItem(KEY,JSON.stringify(backup));localStorage.setItem(MIRROR_KEY,JSON.stringify(backup));return backup}
+ return structuredClone(defaults)
+}
+function save(){
+ const raw=JSON.stringify(state),prev=localStorage.getItem(KEY);
+ if(prev&&prev!==raw)localStorage.setItem(BACKUP_KEY,prev);
+ localStorage.setItem(KEY,raw);
+ localStorage.setItem(MIRROR_KEY,raw);
+ updateBackupStatus()
+}
 function parseDay(s){return new Date(s+'T12:00:00')}
 function dayDiff(a,b){return Math.round((parseDay(b)-parseDay(a))/86400000)}
 function streak(a){const dates=[...new Set(a.history||[])].sort();if(!dates.length)return 0;let end=dates.length-1;const t=today(),last=dates[end];if(dayDiff(last,t)>1)return 0;let n=1;for(let i=end;i>0;i--){if(dayDiff(dates[i-1],dates[i])===1)n++;else break}return n}
@@ -24,7 +40,7 @@ let audio;function beep(){if(!state.prefs.sound)return;try{audio??=new AudioCont
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._x);t._x=setTimeout(()=>t.classList.remove('show'),2200)}
 function applyMotion(){document.body.classList.toggle('no-motion',!state.prefs.animations||state.prefs.reduced)}
 $('#addBtn').onclick=$('#emptyAdd').onclick=()=>{$('#questForm').reset();$('#questDialog').showModal();setTimeout(()=>$('#questName').focus(),100)};
-$('#settingsBtn').onclick=()=>{syncSettings();$('#settingsDialog').showModal()};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
+$('#settingsBtn').onclick=()=>{syncSettings();updateBackupStatus();$('#settingsDialog').showModal()};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#'+b.dataset.close).close());
 $('#questForm').onsubmit=e=>{e.preventDefault();const name=$('#questName').value.trim();if(!name)return;state.activities.push({id:crypto.randomUUID?.()||String(Date.now()),name,reminder:$('#questReminder').value,history:[],created:today()});save();$('#questDialog').close();render();toast('Quest started. First flame awaits 🔥')};
 $('#questList').onclick=e=>{const card=e.target.closest('.quest');if(card&&e.target.closest('.check'))toggle(card.dataset.id)};
 let editingQuestId=null,deletingQuestId=null;
@@ -34,9 +50,15 @@ $('#renameForm').onsubmit=e=>{e.preventDefault();const a=state.activities.find(x
 $('#cancelDelete').onclick=()=>{deletingQuestId=null;$('#deleteDialog').close()};
 $('#confirmDelete').onclick=()=>{if(!deletingQuestId)return;state.activities=state.activities.filter(x=>x.id!==deletingQuestId);Object.keys(state.celebrated||{}).filter(k=>k.startsWith(deletingQuestId+'-')).forEach(k=>delete state.celebrated[k]);save();deletingQuestId=null;$('#deleteDialog').close();render();toast('Quest deleted.')};
 function syncSettings(){const supported='Notification'in window;$('#notifyStatus').textContent=!supported?'Not supported in this browser':`Permission: ${Notification.permission}`;$('#permissionBtn').disabled=!supported||Notification.permission==='granted';$('#permissionBtn').textContent=supported&&Notification.permission==='granted'?'Enabled':'Enable';$('#soundToggle').checked=state.prefs.sound;$('#animationToggle').checked=state.prefs.animations;$('#reducedToggle').checked=state.prefs.reduced}
+function updateBackupStatus(){const el=$('#backupStatus'),btn=$('#restoreBackup');if(!el||!btn)return;const backup=parseStored(localStorage.getItem(BACKUP_KEY));btn.disabled=!backup;el.textContent=backup?'Previous local snapshot available. You can restore it if needed.':'Automatic local backup protection is active. Export a file for safest manual backup.'}
+$('#exportBackup').onclick=()=>{const payload={app:'StreakQuest',version:1,exportedAt:new Date().toISOString(),data:state};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`streakquest-backup-${today()}.json`;document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);toast('Backup exported ✓')};
+$('#importBackup').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{const parsed=JSON.parse(await file.text()),incoming=normalize(parsed?.data||parsed);if(!Array.isArray(incoming.activities))throw new Error('Invalid');if(!confirm('Import this backup? It will replace the current quests on this device.'))return;const current=localStorage.getItem(KEY);if(current)localStorage.setItem(BACKUP_KEY,current);state=incoming;localStorage.setItem(KEY,JSON.stringify(state));localStorage.setItem(MIRROR_KEY,JSON.stringify(state));render();updateBackupStatus();toast('Backup restored ✓')}catch{toast('That backup file could not be read.')}finally{e.target.value=''}};
+$('#restoreBackup').onclick=()=>{const backup=parseStored(localStorage.getItem(BACKUP_KEY));if(!backup)return;if(!confirm('Restore the previous local snapshot? Your current state will be kept as a fallback copy.'))return;const current=localStorage.getItem(KEY);if(current)localStorage.setItem(MIRROR_KEY,current);state=backup;localStorage.setItem(KEY,JSON.stringify(state));render();updateBackupStatus();toast('Previous snapshot restored ✓')};
 $('#permissionBtn').onclick=async()=>{if(!('Notification'in window))return;const p=await Notification.requestPermission();syncSettings();toast(p==='granted'?'Notifications enabled 🔥':'Notification permission not enabled.')};
 $('#notifyBtn').onclick=()=>{if('Notification'in window&&Notification.permission==='granted')new Notification('StreakQuest 🔥',{body:'Your quests are waiting. Keep the fire alive.',icon:'icon.svg'});else{$('#settingsDialog').showModal();syncSettings()}};
 ['sound','animation','reduced'].forEach(k=>$('#'+k+'Toggle').onchange=e=>{state.prefs[k==='animation'?'animations':k]=e.target.checked;save();applyMotion()});
-$('#resetAll').onclick=()=>{if(confirm('Reset ALL StreakQuest data? This cannot be undone.')){localStorage.removeItem(KEY);state=structuredClone(defaults);$('#settingsDialog').close();render();toast('Fresh start. Your flame is waiting.')}};
+$('#resetAll').onclick=()=>{if(confirm('Reset ALL StreakQuest data? This cannot be undone.')){localStorage.removeItem(KEY);localStorage.removeItem(BACKUP_KEY);localStorage.removeItem(MIRROR_KEY);state=structuredClone(defaults);$('#settingsDialog').close();render();toast('Fresh start. Your flame is waiting.')}};
+if(navigator.storage?.persist)navigator.storage.persist().catch(()=>{});
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)render()});render();
